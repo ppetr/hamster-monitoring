@@ -1,5 +1,3 @@
-#include "pins_arduino.h"
-
 // The pin of the wheel spoke sensor.
 // Must be an interrupt pin, on Mega* one of 2, 3, 18, 19, 20, 21.
 #define WHEEL_PIN 21
@@ -24,12 +22,14 @@
 // How often we want to send the measured values to the serial line.
 #define RECORD_EVERY_S 20
 
+#include "ema.h"
+
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
 // Derived values:
-const float kDistancePerPulseM = DIAMETER_CM / 100.0 * PI / SPOKES;
-const float kMinPeriodMs = 1000.0 * kDistancePerPulseM / MAX_SPEED_M_S;
+const double kDistancePerPulseM = DIAMETER_CM / 100.0 * PI / SPOKES;
+const double kMinPeriodMs = 1000.0 * kDistancePerPulseM / MAX_SPEED_M_S;
 
 // Holds a sample of measured values.
 struct Count {
@@ -57,9 +57,9 @@ class Counter {
       return counter_;
     }
     if (value) {  // RISING, record, if valid.
+      digitalWrite(LED_BUILTIN, HIGH);
       if (now - last_change_ms_ >= kMinPeriodMs) {
-	digitalWrite(LED_BUILTIN, HIGH);
-	counter_++;
+        counter_++;
       }
     } else {  // FALLING
       digitalWrite(LED_BUILTIN, LOW);
@@ -72,13 +72,11 @@ class Counter {
   // Moves internal metrics into a new 'Count' and resets the internal fields.
   Count MoveOut() volatile {
     Count out;
-    noInterrupts();
     const ulong now = millis();
     out.period_ms = now - start_ms_;
     start_ms_ = now;
     out.count = counter_;
     counter_ = 0;
-    interrupts();
     return out;
   }
 
@@ -90,9 +88,12 @@ class Counter {
 };
 
 volatile Counter counter;
+volatile EMA ema(/*mean_time_ms=*/RECORD_EVERY_S * 1000, /*init=*/0.0);
 
 void update_isr() {
-  counter.Record(digitalRead(WHEEL_PIN) == WHEEL_PULSE);
+  bool value = digitalRead(WHEEL_PIN) == WHEEL_PULSE;
+  counter.Record(value);
+  ema.Record(/*time_ms=*/millis(), /*value=*/value ? 1 : 0);
 }
 
 void setup() {
@@ -102,16 +103,24 @@ void setup() {
 }
 
 void loop() {
-  Count sample = counter.MoveOut();
+  noInterrupts();
+  // Update the metrics before reading, just in the case there hasn't been any
+  // change. This is important for EMA to give meaningful results.
+  update_isr();
+  const Count sample = counter.MoveOut();
+  const double average = ema.Average();
+  interrupts();
   if (sample.period_ms > 0) {
-    const float period_s = sample.period_ms / 1000.0;
-    const float distance_m = sample.count * kDistancePerPulseM;
+    const double period_s = sample.period_ms / 1000.0;
+    const double distance_m = sample.count * kDistancePerPulseM;
     Serial.print("hamster,pin=50 count=");
     Serial.print(sample.count);
     Serial.print(",period_s=");
     Serial.print(period_s, 1);
     Serial.print(",distance_m=");
     Serial.print(distance_m, 2);
+    Serial.print(",ema=");
+    Serial.print(average);
     Serial.println();
   }
   delay(/*ms=*/RECORD_EVERY_S * 1000);
