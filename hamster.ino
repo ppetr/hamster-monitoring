@@ -119,6 +119,8 @@ void loop() {
     Serial.print(period_s, 1);
     Serial.print(",distance_m=");
     Serial.print(distance_m, 2);
+    Serial.print(",speed_m_s=");
+    Serial.print(distance_m / period_s, 3);
     Serial.print(",ema=");
     Serial.print(average);
     Serial.println();
