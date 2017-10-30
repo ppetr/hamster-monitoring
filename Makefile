@@ -4,6 +4,7 @@
 
 BOARD_TAG    = mega2560
 MONITOR_PORT = /dev/ttyACM0
+ARDUINO_LIBS = Dht11_Library
 #CFLAGS_STD   = -std=gnu++11
 
 include /usr/share/arduino/Arduino.mk

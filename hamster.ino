@@ -22,6 +22,10 @@
 // How often we want to send the measured values to the serial line.
 #define RECORD_EVERY_S 20
 
+#define DHT11_DATA_PIN 52
+
+#include <Dht11.h>
+
 #include "ema.h"
 
 typedef unsigned int uint;
@@ -103,6 +107,9 @@ void setup() {
 }
 
 void loop() {
+  static Dht11 dht(DHT11_DATA_PIN);
+
+  const unsigned long started = millis();
   noInterrupts();
   // Update the metrics before reading, just in the case there hasn't been any
   // change. This is important for EMA to give meaningful results.
@@ -125,5 +132,18 @@ void loop() {
     Serial.print(average);
     Serial.println();
   }
-  delay(/*ms=*/RECORD_EVERY_S * 1000);
+
+  if (dht.read() == Dht11::OK) {
+    Serial.print("hamster_temp,sensor=dht11 temperature=");
+    Serial.print(dht.getTemperature());
+    Serial.print(",humidity=");
+    Serial.print(dht.getHumidity());
+    Serial.println();
+  }
+
+  signed long wait_ms =
+    (unsigned long)(RECORD_EVERY_S * 1000) + started - millis();
+  if (wait_ms > 0) {
+    delay(/*ms=*/wait_ms);
+  }
 }
