@@ -120,7 +120,7 @@ void loop() {
   if (sample.period_ms > 0) {
     const double period_s = sample.period_ms / 1000.0;
     const double distance_m = sample.count * kDistancePerPulseM;
-    Serial.print("hamster,pin=50 count=");
+    Serial.print("hamster count=");
     Serial.print(sample.count);
     Serial.print(",period_s=");
     Serial.print(period_s, 1);
